@@ -1,0 +1,10 @@
+{
+  "name": "Pixel Adventure — Etapa 1",
+  "short_name": "Pixel Adventure",
+  "description": "Demonstração jogável de plataforma em pixel art.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b1328",
+  "theme_color": "#132447",
+  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

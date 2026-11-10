@@ -1,0 +1,13 @@
+PIXEL ADVENTURE — MAPAS COM NOVO DESAFIO
+
+Atualização:
+- Fases 1 a 4 ampliadas em desafio vertical e travessias.
+- Plataformas elevadas com larguras e distâncias variadas.
+- Plataformas quebradiças: tremem ao receber o jogador, caem, ficam ausentes por alguns segundos e se reconstroem.
+- Mais inimigos distribuídos também nas rotas elevadas.
+- Trechos de chão interrompidos para exigir saltos e exploração das plataformas.
+- Pausa, controles, máscaras, chefes e progresso mantidos.
+
+Instalação:
+Substitua os arquivos do projeto pelos arquivos desta pasta, mantendo a estrutura.
+Se o navegador mantiver a versão anterior, feche a PWA e recarregue para atualizar o Service Worker.
