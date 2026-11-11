@@ -62,7 +62,7 @@ function damage(type,source){
   respawn();notice(`Vida perdida! Restam ${hero.lives}`);
 }
 function respawn(){hero.x=checkpoint.on?checkpoint.x+18:hero.spawnX;hero.y=checkpoint.on?checkpoint.y:hero.spawnY;hero.x=Math.max(0,Math.min(level.width-hero.w,hero.x));hero.vx=hero.vy=0;hero.form=null;hero.hurt=1.25;}
-function resolveX(){for(const s of colliders())if(overlap(hero,s)){if(hero.vx>0)hero.x=s.x-hero.w;else if(hero.vx<0)hero.x=s.x+s.w;hero.vx=0;}}
+function resolveX(){for(const s of colliders())if(!s.platform&&overlap(hero,s)){if(hero.vx>0)hero.x=s.x-hero.w;else if(hero.vx<0)hero.x=s.x+s.w;hero.vx=0;}}
 function resolveY(previousBottom){hero.onGround=false;for(const s of colliders())if(!(s.platform&&s.crumbleState==="gone")&&overlap(hero,s)){if(hero.vy>=0&&previousBottom<=s.y+8){hero.y=s.y-hero.h;hero.vy=0;hero.onGround=true;hero.jumps=0;if(s.crumble&&s.crumbleState==="stable"){s.crumbleState="shaking";s.crumbleTimer=.72;}}else if(hero.vy<0){hero.y=s.y+s.h;hero.vy=0;}}}
 function useAction(){
   if(hero.action>0)return;hero.action=.22;
@@ -78,21 +78,25 @@ function useAction(){
 }
 function hurtBoss(){if(boss.hit>0)return;boss.hit=.45;boss.hp--;boss.state=boss.hp?"hurt":"defeated";boss.timer=boss.hp?.55:2.0;notice(boss.hp?"Núcleo atingido!":"Guardião derrotado!");}
 function chooseBossTarget(){
-  // O olho só pode surgir nestes dois pontos, ambos dentro da arena e da câmera travada.
-  const points=[
-    {x:1010,y:245},
-    {x:1390,y:245}
+  // Dois avisos por ciclo, sorteados entre pontos altos, médios e baixos
+  // distribuídos por toda a arena visível. Um deles é o alvo verdadeiro.
+  const candidates=[
+    {x:850,y:125},{x:1080,y:125},{x:1320,y:125},{x:1560,y:125},
+    {x:900,y:255},{x:1160,y:255},{x:1430,y:255},{x:1620,y:255},
+    {x:850,y:380},{x:1100,y:380},{x:1360,y:380},{x:1580,y:380}
   ];
-  let next=Math.floor(Math.random()*points.length);
-  if(next===boss.targetIndex)next=(next+1)%points.length;
-  boss.targetIndex=next;
-  // Duas marcas piscam; apenas uma contém o olho verdadeiro.
-  const other=(next+1)%points.length;
-  boss.eyeMarks=[
-    {...points[next],index:next,real:true,alpha:0},
-    {...points[other],index:other,real:false,alpha:0}
-  ].sort(()=>Math.random()-.5);
-  Object.assign(boss.target,points[next],{w:46,h:34,active:false,warning:true,warningTimer:1.25,rayFired:false});
+  let first=Math.floor(Math.random()*candidates.length);
+  let second;
+  do{second=Math.floor(Math.random()*candidates.length);}while(second===first);
+  let real=Math.random()<.5?first:second;
+  if(real===boss.targetIndex){
+    real=real===first?second:first;
+  }
+  boss.targetIndex=real;
+  const chosen=[first,second].map((index)=>({...candidates[index],index,real:index===real,alpha:0}));
+  boss.eyeMarks=chosen.sort(()=>Math.random()-.5);
+  const target=candidates[real];
+  Object.assign(boss.target,target,{w:46,h:34,active:false,warning:true,warningTimer:1.25,rayFired:false});
 }
 function spawnBossSpikes(){
   // Padrões variáveis: ondas curtas em faixas diferentes, deixando rotas de fuga.
