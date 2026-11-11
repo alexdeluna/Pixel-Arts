@@ -9,9 +9,10 @@ const SAVE="pixel-adventure-world-1-progress-v3";
 const canvas=document.querySelector("#game"),ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;
 const modeEl=document.querySelector("#modeSelect"),difficultyEl=document.querySelector("#difficultySelect"),stageEl=document.querySelector("#stageSelect"),toastEl=document.querySelector("#toast"),logEl=document.querySelector("#damageLog"),countEl=document.querySelector("#damageCount");
 const keys={left:false,right:false,jump:false,action:false};
-const game={mode:"normal",difficulty:"normal",time:0,camera:0,toast:0,events:[],finished:false,transition:0,paused:false,score:0,progress:readSave()};
+const TIME_LIMITS={easy:480,normal:360,hard:300};
+const game={mode:"normal",difficulty:"normal",time:0,levelTime:360,camera:0,toast:0,events:[],finished:false,transition:0,paused:false,score:0,progress:readSave()};
 const hero={x:86,y:220,w:32,h:48,vx:0,vy:0,face:1,onGround:false,jumps:0,lives:3,form:null,hurt:0,action:0,dash:0,spawnX:86,spawnY:220};
-let level,solids,hazards,enemies,masks,secrets,blocks,arrows,checkpoint,portal,boss;
+let level,solids,hazards,enemies,masks,secrets,blocks,arrows,checkpoint,portal,boss,flyers=[];
 const ENEMY_KINDS={boar:{file:"boar.png",frames:4,w:50,h:50,offsetX:-4,offsetY:-13},mushroom:{file:"mushroom.png",frames:3,w:42,h:48,offsetX:-7,offsetY:-12},armadillo:{file:"armadillo.png",frames:3,w:46,h:44,offsetX:-9,offsetY:-9},wasp:{file:"wasp.png",frames:4,w:42,h:42,offsetX:-7,offsetY:-10},bat:{file:"bat.png",frames:4,w:44,h:42,offsetX:-8,offsetY:-8},plant:{file:"plant.png",frames:3,w:44,h:50,offsetX:-8,offsetY:-15}};
 const enemyImages={};
 for(const kind of Object.keys(ENEMY_KINDS))enemyImages[kind]=null;
@@ -33,14 +34,44 @@ const LEVELS=[
   solids:[r(0,476,430,64),r(620,476,500,64),r(1320,476,410,64),r(1930,476,420,64),r(2470,476,580,64),r(200,340,180,136),r(500,290,70,186),r(570,360,210,116),r(910,320,110,156),r(1100,260,70,216),r(1170,385,170,91),r(1550,310,180,166),r(1830,250,65,226),r(1895,370,205,106),r(2260,300,190,176),r(2650,335,180,141)],
   blocks:[r(785,380,46,96),r(831,380,46,96),r(1340,400,48,76),r(2100,380,48,96),r(2148,380,48,96)], hazards:[r(420,454,55,22),r(1450,454,65,22),r(2510,454,55,22)], enemies:[{x:630},{x:1220},{x:1640},{x:2340},{x:2750},{x:680},{x:1040},{x:1430},{x:2020},{x:2450}], masks:[{x:625,y:312,type:"warrior",label:"Máscara Guerreiro"},{x:2285,y:252,type:"archer",secret:true,label:"Máscara Arqueiro"}], secrets:[r(2100,292,96,84)], checkpoint:{x:1900,y:428},portal:r(2940,394,30,82),platforms:[r(430,290,54,18),r(540,225,72,18),r(680,155,48,18),r(800,245,58,18),r(920,180,44,18),r(1040,115,76,18),r(1170,285,52,18),r(1290,220,70,18),r(1430,150,46,18),r(1760,270,72,18),r(1880,205,48,18),r(2020,140,78,18),r(2180,245,48,18),r(2300,180,72,18),r(2450,115,50,18),r(2580,250,78,18),r(2730,185,50,18)],crumble:[r(540,225,72,18),r(920,180,44,18),r(1290,220,70,18),r(1880,205,48,18),r(2300,180,72,18),r(2580,250,78,18)]},
  {id:5,name:"05 · Covil da Criatura",theme:"lair",width:1900,intro:"Pegue a máscara Arqueiro e avance até a arena. A câmera será travada durante a batalha.",
-  solids:[r(0,476,1900,64),r(330,370,150,106),r(580,300,140,176),r(1180,300,140,176),r(1420,370,150,106)], hazards:[], enemies:[], masks:[{x:210,y:428,type:"archer",label:"Máscara Arqueiro — entrada da arena"}], secrets:[r(70,400,60,76)], checkpoint:{x:130,y:428},portal:r(1780,394,30,82),boss:true}
+  solids:[r(0,476,1900,64),r(330,370,150,106),r(580,300,140,176),r(1180,300,140,176),r(1420,370,150,106)], hazards:[], enemies:[], masks:[{x:210,y:428,type:"archer",label:"Máscara Arqueiro — entrada da arena"}], secrets:[r(70,400,60,76)], checkpoint:{x:130,y:428},portal:r(1780,394,30,82),boss:true},
+ {id:6,name:"DESAFIO · Fuga da Máquina Mortal",theme:"transition",width:10000,transitionStage:true,intro:"FUJA! A Máquina Mortal não para. Corra, salte e alcance a saída antes que ela alcance você.",
+  solids:[r(0,476,10000,64),r(610,408,105,68),r(1120,360,115,116),r(1680,410,125,66),r(2260,350,130,126),r(2880,400,120,76),r(3540,345,145,131),r(4230,395,130,81),r(4920,350,145,126),r(5580,405,130,71),r(3060,420,70,56),r(3135,365,70,111),r(3210,310,70,166),r(3285,255,70,221),r(7140,420,70,56),r(7215,365,70,111),r(7290,310,70,166),r(7365,255,70,221),r(8450,410,115,66),r(9140,365,120,111)],
+  hazards:[
+    r(900,454,62,22),r(1460,454,70,22),r(2050,454,65,22),r(2670,454,75,22),
+    r(3420,454,70,22),r(3970,454,68,22),r(4630,454,76,22),r(5310,454,70,22),
+    r(6000,454,72,22),r(6190,454,62,22),r(6510,454,78,22),r(6800,454,68,22),
+    r(7580,454,72,22),r(7770,454,64,22),r(8080,454,80,22),r(8670,454,70,22),
+    r(8860,454,62,22),r(9470,454,76,22),r(9670,454,68,22)
+  ],
+  enemies:[],masks:[],secrets:[],checkpoint:{x:145,y:428},portal:r(9820,394,34,82),
+  platforms:[r(430,385,85,18),r(760,330,78,18),r(1030,300,88,18),r(1320,355,72,18),r(1580,300,82,18),r(1880,340,78,18),r(2150,285,90,18),r(2470,330,76,18),r(2760,280,88,18),r(3070,335,82,18),r(3380,285,92,18),r(3700,330,80,18),r(4020,275,88,18),r(4350,320,82,18),r(4680,270,90,18),r(5010,325,82,18),r(5340,280,90,18),r(5680,330,82,18),r(5980,275,90,18),
+    r(6200,360,80,18),r(6460,310,82,18),r(6740,350,78,18),
+    r(6970,315,82,18),r(7510,345,80,18),r(7820,300,86,18),
+    r(8150,345,82,18),r(8520,325,80,18),r(8810,285,86,18),
+    r(9200,320,82,18),r(9500,285,88,18)]} ,
+ {id:7,name:"MUNDO 2 · 01 — Entrada das Cavernas",theme:"cave",width:2700,intro:"Mundo 2 — Cavernas. Explore as passagens subterrâneas e avance com cuidado.",
+  solids:[r(0,476,430,64),r(570,476,420,64),r(1120,476,470,64),r(1710,476,430,64),r(2260,476,440,64),r(250,380,120,96),r(700,350,150,126),r(1260,370,150,106),r(1840,340,150,136),r(2390,365,150,111)],
+  hazards:[r(475,454,55,22),r(1040,454,55,22),r(1635,454,55,22),r(2185,454,55,22)],
+  enemies:[{x:640},{x:1190},{x:1780},{x:2320}],masks:[{x:820,y:300,type:"warrior",label:"Máscara Guerreiro"}],
+  secrets:[r(1930,285,65,80)],checkpoint:{x:1450,y:428},portal:r(2610,394,30,82),
+  platforms:[r(450,370,65,18),r(540,300,70,18),r(900,330,70,18),r(1050,270,75,18),r(1510,320,70,18),r(1660,260,75,18),r(2070,300,70,18),r(2220,245,75,18),r(2460,310,70,18)]}
+
 ];
 
-function readSave(){try{return{unlocked:1,cleared:[],...JSON.parse(localStorage.getItem(SAVE)||"{}")};}catch(_){return{unlocked:1,cleared:[]};}}
+function readSave(){
+  try{
+    const saved={unlocked:1,cleared:[],...JSON.parse(localStorage.getItem(SAVE)||"{}")};
+    // Compatibilidade com saves antigos: chefe derrotado libera a Máquina Mortal.
+    if(saved.cleared.includes(5)&&!saved.transitionCleared)saved.unlocked=Math.max(saved.unlocked,6);
+    if(saved.transitionCleared)saved.unlocked=Math.max(saved.unlocked,7);
+    return saved;
+  }catch(_){return{unlocked:1,cleared:[]};}
+}
 function save(){localStorage.setItem(SAVE,JSON.stringify(game.progress));fillStages();}
 const clone=a=>JSON.parse(JSON.stringify(a||[]));
 function fillStages(){stageEl.innerHTML=LEVELS.map(l=>`<option value="${l.id}" ${l.id>game.progress.unlocked?"disabled":""}>${l.name}${l.id>game.progress.unlocked?" · bloqueada":""}</option>`).join("");if(level)stageEl.value=level.id;}
-function loadLevel(id,keepLives=false){game.paused=false;const pauseBtn=document.querySelector("#pauseButton");if(pauseBtn)pauseBtn.textContent="Pausar · P / ESC";level=LEVELS[id-1];solids=clone(level.solids);(level.platforms||[]).forEach((p,i)=>solids.push({...clone([p])[0],platform:true,crumble:(level.crumble||[]).some(c=>c.x===p.x&&c.y===p.y),crumbleState:"stable",crumbleTimer:0}));hazards=clone(level.hazards).map(h=>({...h,type:"espinhos",source:"Armadilha"}));if(level.water)hazards.push(...clone(level.water).map(h=>({...h,type:"correnteza",source:"Rio Perdido"})));blocks=clone(level.blocks).map(b=>({...b,broken:false}));enemies=clone(level.enemies).map((e,i)=>{const isBoar=level.id===1&&(i===0||i===2||i===3),w=isBoar?42:28,h=34;const support=solids.filter(s=>e.x+w>s.x&&e.x<s.x+s.w&&s.y>=100&&s.y<476).sort((a,b)=>a.y-b.y)[0];const floorY=support?support.y:476;return{x:e.x,y:floorY-h,w,h,min:support?Math.max(support.x+2,e.x-48):e.x-72,max:support?Math.min(support.x+support.w-w-2,e.x+48):e.x+92,dir:i%2?1:-1,speed:55+i*8,dead:false,type:isBoar?"boar":"generic",kind:enemyKindFor(level.id,i,isBoar),state:"patrol",timer:0,stun:0,hp:1};});masks=clone(level.masks).map(m=>({...m,w:26,h:28,taken:false}));secrets=clone(level.secrets).map(s=>({...s,found:false}));arrows=[];checkpoint={...level.checkpoint,on:false};portal={...level.portal};boss=level.boss?{x:1540,y:306,w:125,h:170,hp:DIFFICULTY[game.difficulty].hits,max:DIFFICULTY[game.difficulty].hits,state:"intro",timer:1.4,phase:0,core:false,dead:false,hit:0,arenaActive:false,arenaCamera:760,arenaLeft:760,arenaRight:1720,target:{x:1120,y:330,w:30,h:30,active:false},targetIndex:-1,mask:{x:520,y:428,w:26,h:28,type:"archer",taken:true,active:false,phase:"collected",timer:0}}:null;Object.assign(hero,{x:86,y:220,vx:0,vy:0,jumps:0,form:null,hurt:0,action:0,dash:0});game.camera=0;game.finished=false;game.transition=0;if(!keepLives){hero.lives=RULES[game.mode].lives;game.events=[];game.score=0;renderLog();}notice(level.intro);fillStages();}
+function loadLevel(id,keepLives=false){game.levelTime=TIME_LIMITS[game.difficulty];game.machine=level?.transitionStage?null:null;flyers=[];game.flyerSpawn=2.5;game.paused=false;const pauseBtn=document.querySelector("#pauseButton");if(pauseBtn)pauseBtn.textContent="Pausar · P / ESC";level=LEVELS[id-1];const heading=document.querySelector(".topbar h1");if(heading)heading.textContent=level.id>=7?"Mundo 2 · As Cavernas":"Mundo 1 · A Floresta Perdida";game.machine=level.transitionStage?{x:-850,w:250,speed:210,initialX:-850}:null;solids=clone(level.solids);(level.platforms||[]).forEach((p,i)=>solids.push({...clone([p])[0],platform:true,crumble:(level.crumble||[]).some(c=>c.x===p.x&&c.y===p.y),crumbleState:"stable",crumbleTimer:0}));hazards=clone(level.hazards).map(h=>({...h,type:"espinhos",source:"Armadilha"}));if(level.water)hazards.push(...clone(level.water).map(h=>({...h,type:"correnteza",source:"Rio Perdido"})));blocks=clone(level.blocks).map(b=>({...b,broken:false}));enemies=clone(level.enemies).map((e,i)=>{const isBoar=level.id===1&&(i===0||i===2||i===3),w=isBoar?42:28,h=34;const support=solids.filter(s=>e.x+w>s.x&&e.x<s.x+s.w&&s.y>=100&&s.y<476).sort((a,b)=>a.y-b.y)[0];const floorY=support?support.y:476;return{x:e.x,y:floorY-h,w,h,min:support?Math.max(support.x+2,e.x-48):e.x-72,max:support?Math.min(support.x+support.w-w-2,e.x+48):e.x+92,dir:i%2?1:-1,speed:55+i*8,dead:false,type:isBoar?"boar":"generic",kind:enemyKindFor(level.id,i,isBoar),state:"patrol",timer:0,stun:0,hp:1};});masks=clone(level.masks).map(m=>({...m,w:26,h:28,taken:false}));secrets=clone(level.secrets).map(s=>({...s,found:false}));arrows=[];checkpoint={...level.checkpoint,on:false};portal={...level.portal};boss=level.boss?{x:1540,y:306,w:125,h:170,hp:DIFFICULTY[game.difficulty].hits,max:DIFFICULTY[game.difficulty].hits,state:"intro",timer:1.4,phase:0,core:false,dead:false,hit:0,arenaActive:false,arenaCamera:760,arenaLeft:760,arenaRight:1720,target:{x:1120,y:330,w:30,h:30,active:false},targetIndex:-1,mask:{x:520,y:428,w:26,h:28,type:"archer",taken:true,active:false,phase:"collected",timer:0}}:null;Object.assign(hero,{x:86,y:220,vx:0,vy:0,jumps:0,form:null,hurt:0,action:0,dash:0});game.camera=0;game.finished=false;game.transition=0;if(!keepLives){hero.lives=RULES[game.mode].lives;game.events=[];game.score=0;renderLog();}notice(level.intro);fillStages();}
 function notice(t){toastEl.textContent=t;game.toast=3;toastEl.classList.add("show");}
 function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
 function colliders(){const list=solids.filter(s=>!(s.platform&&s.crumbleState==="gone")).concat(blocks.filter(b=>!b.broken));if(boss&&boss.arenaActive&&!boss.dead)list.push({x:boss.arenaRight,y:0,w:80,h:540});return list;}
@@ -60,6 +91,12 @@ function damage(type,source){
   }
   if(--hero.lives<=0){hero.lives=0;game.finished=true;notice("GAME OVER — pressione Recomeçar");return;}
   respawn();notice(`Vida perdida! Restam ${hero.lives}`);
+}
+function timeExpired(){
+  report("tempo esgotado","Cronômetro da fase");
+  if(RULES[game.mode].safe){notice("Tempo esgotado! Evento registrado no Modo Teste.");return;}
+  if(--hero.lives<=0){hero.lives=0;game.finished=true;notice("GAME OVER — tempo esgotado");return;}
+  respawn();notice(`Tempo esgotado! Vida perdida. Restam ${hero.lives}`);
 }
 function respawn(){hero.x=checkpoint.on?checkpoint.x+18:hero.spawnX;hero.y=checkpoint.on?checkpoint.y:hero.spawnY;hero.x=Math.max(0,Math.min(level.width-hero.w,hero.x));hero.vx=hero.vy=0;hero.form=null;hero.hurt=1.25;}
 function resolveX(){for(const s of colliders())if(!s.platform&&overlap(hero,s)){if(hero.vx>0)hero.x=s.x-hero.w;else if(hero.vx<0)hero.x=s.x+s.w;hero.vx=0;}}
@@ -214,12 +251,45 @@ function updateBoss(dt){
   }else if(boss.state==="hurt"&&boss.timer<=0){
     boss.core=false;boss.target.active=false;boss.target.warning=false;boss.eyeMarks=[];boss.state="attack";boss.timer=.38/rate;
   }else if(boss.state==="defeated"&&boss.timer<=0){
-    boss.dead=true;boss.target.active=false;boss.target.warning=false;boss.eyeMarks=[];game.finished=true;
-    game.progress.cleared=[...new Set([...game.progress.cleared,5])];save();
-    notice("Mundo 1 concluído! A floresta foi libertada.");
+    boss.dead=true;boss.target.active=false;boss.target.warning=false;boss.eyeMarks=[];
+    game.progress.cleared=[...new Set([...game.progress.cleared,5])];
+    game.progress.unlocked=Math.max(game.progress.unlocked,6);
+    game.finished=false;game.transition=2.8;save();
+    notice("MUNDO 1 CONCLUÍDO! A Máquina Mortal está chegando...");
   }
 }
-function update(dt){if(game.paused)return;game.time+=dt;if(game.toast>0&&(game.toast-=dt)<=0)toastEl.classList.remove("show");if(game.transition>0){if((game.transition-=dt)<=0)loadLevel(level.id+1,true);return;}enemies.forEach(e=>{
+function update(dt){if(game.paused)return;game.time+=dt;
+  if(!game.finished&&game.transition<=0){
+    game.levelTime-=dt;
+    if(game.levelTime<=0){
+      game.levelTime=TIME_LIMITS[game.difficulty];
+      damage("tempo esgotado","Cronômetro da fase");
+      if(!game.finished)notice("Tempo esgotado! O cronômetro foi reiniciado.");
+    }
+  }
+  if(game.toast>0&&(game.toast-=dt)<=0)toastEl.classList.remove("show");
+  if(game.transition>0){if((game.transition-=dt)<=0)loadLevel(level.id+1,true);return;}
+  if(level.transitionStage&&game.machine){
+    // Velocidade fixa: a máquina não acelera nem reduz o ritmo.
+    game.machine.x+=game.machine.speed*dt;
+    if(game.machine.x+game.machine.w>=hero.x+4){
+      report("alcançado pela Máquina Mortal","Desafio de transição");
+      notice("A máquina alcançou você! O desafio será reiniciado.");
+      loadLevel(6,true);
+      return;
+    }
+  }
+  if(!level.transitionStage)game.flyerSpawn-=dt;
+  if(!level.transitionStage&&game.flyerSpawn<=0){
+    const heights=[105,155,215,275,335,395];
+    const y=heights[Math.floor(Math.random()*heights.length)];
+    const speed=245+Math.random()*85;
+    flyers.push({x:game.camera+VIEW.w+55,y,w:46,h:36,vx:-speed,kind:"bat",dir:-1,dead:false,state:"fly",timer:0,hp:1});
+    game.flyerSpawn=4.2+Math.random()*2.1;
+  }
+  flyers.forEach(f=>{f.x+=f.vx*dt;});
+  flyers=flyers.filter(f=>!f.dead&&f.x+f.w>game.camera-55&&f.x<game.camera+VIEW.w+90);
+  enemies.forEach(e=>{
   if(e.dead)return;
   if(e.type!=="boar"){
     e.x+=e.dir*e.speed*dt;
@@ -249,7 +319,14 @@ function update(dt){if(game.paused)return;game.time+=dt;if(game.toast>0&&(game.t
   if(h.warning>0){h.warning-=dt;if(h.warning<=0){h.active=true;h.ttl=h.duration||1;}}
   else if(h.active&&h.ttl!=null){h.ttl-=dt;if(h.type==="pedra-caindo"){h.vy=(h.vy||0)+PHYS.gravity*1.35*dt;h.y+=h.vy*dt;}if(h.type==="pedra-grande"){h.vy=(h.vy||0)+PHYS.gravity*.62*dt;h.x+=h.vx*dt;h.y+=h.vy*dt;}if(h.type==="motosserra"){h.x+=h.vx*dt;if(h.x+h.w<boss.arenaCamera-160)return false;}if(h.ttl<=0||h.y>540)return false;}
   return true;
-});arrows=arrows.filter(a=>{if(a.enemy&&!a.ray){a.vy+=PHYS.gravity*.42*dt;a.y+=a.vy*dt;}else if(a.ray){a.y+=a.vy*dt;}a.x+=a.vx*dt;a.ttl-=dt;return a.ttl>0&&a.x>-40&&a.x<level.width+40&&a.y<580;});updateBoss(dt);if(game.finished)return;if(hero.hurt>0)hero.hurt-=dt;if(hero.action>0)hero.action-=dt;if(hero.dash>0)hero.dash-=dt;let direction=Number(keys.right)-Number(keys.left);if(hero.dash>0){if(direction){hero.face=direction;hero.vx=direction*610;}}else{if(direction){hero.face=direction;hero.vx+=(direction*PHYS.speed-hero.vx)*Math.min(1,dt*13);}else{hero.vx*=Math.max(0,1-dt*10);}}if(keys.jump){const allowed=hero.form==="ninja"?3:2;if(hero.onGround||hero.jumps<allowed){hero.vy=-PHYS.jump;hero.jumps++;hero.onGround=false;}keys.jump=false;}if(keys.action){useAction();keys.action=false;}hero.vy+=PHYS.gravity*dt;hero.x+=hero.vx*dt;resolveX();const oldBottom=hero.y+hero.h;hero.y+=hero.vy*dt;resolveY(oldBottom);if(hero.y>660){damage(level.theme==="river"?"correnteza":"queda",level.theme==="river"?"Rio Perdido":"Abismo");if(RULES[game.mode].safe)respawn();}const body={x:hero.x+4,y:hero.y+4,w:hero.w-8,h:hero.h-5};hazards.forEach(h=>{const active=(h.warning===undefined||h.warning<=0)&&(h.active===undefined||h.active);if(active&&overlap(body,h))damage(h.type,h.source);});enemies.forEach(e=>{
+});arrows=arrows.filter(a=>{if(a.enemy&&!a.ray){a.vy+=PHYS.gravity*.42*dt;a.y+=a.vy*dt;}else if(a.ray){a.y+=a.vy*dt;}a.x+=a.vx*dt;a.ttl-=dt;return a.ttl>0&&a.x>-40&&a.x<level.width+40&&a.y<580;});updateBoss(dt);if(game.finished)return;if(hero.hurt>0)hero.hurt-=dt;if(hero.action>0)hero.action-=dt;if(hero.dash>0)hero.dash-=dt;let direction=Number(keys.right)-Number(keys.left);if(hero.dash>0){if(direction){hero.face=direction;hero.vx=direction*610;}}else{if(direction){hero.face=direction;const runSpeed=level.transitionStage?225:PHYS.speed;hero.vx+=(direction*runSpeed-hero.vx)*Math.min(1,dt*13);}else{hero.vx*=Math.max(0,1-dt*10);}}if(keys.jump){const allowed=hero.form==="ninja"?3:2;if(hero.onGround||hero.jumps<allowed){hero.vy=-PHYS.jump;hero.jumps++;hero.onGround=false;}keys.jump=false;}if(keys.action){useAction();keys.action=false;}hero.vy+=PHYS.gravity*dt;hero.x+=hero.vx*dt;resolveX();const oldBottom=hero.y+hero.h;hero.y+=hero.vy*dt;resolveY(oldBottom);if(hero.y>660){damage(level.theme==="river"?"correnteza":"queda",level.theme==="river"?"Rio Perdido":"Abismo");if(RULES[game.mode].safe)respawn();}const body={x:hero.x+4,y:hero.y+4,w:hero.w-8,h:hero.h-5};
+  flyers.forEach(f=>{
+    if(f.dead||!overlap(body,f))return;
+    const stomp=hero.vy>80&&oldBottom<=f.y+13;
+    if(stomp){f.dead=true;hero.vy=-390;hero.jumps=Math.max(0,hero.jumps-1);game.score+=150;notice("Morcego abatido! +150 pontos");}
+    else damage("colisão aérea","Morcego voador");
+  });
+  hazards.forEach(h=>{const active=(h.warning===undefined||h.warning<=0)&&(h.active===undefined||h.active);if(active&&overlap(body,h))damage(h.type,h.source);});enemies.forEach(e=>{
   if(e.dead||!overlap(body,e))return;
   const stomp=hero.vy>80&&oldBottom<=e.y+13;
   if(stomp){
@@ -262,6 +339,7 @@ function update(dt){if(game.paused)return;game.time+=dt;if(game.toast>0&&(game.t
   if(!a.enemy){
     a.y+=(a.vy||0)*dt;
     enemies.forEach(e=>{if(!e.dead&&overlap(a,e)){e.dead=true;a.ttl=0;notice("Flecha certeira!");}});
+    flyers.forEach(f=>{if(!f.dead&&overlap(a,f)){f.dead=true;a.ttl=0;game.score+=150;notice("Morcego abatido! +150 pontos");}});
     if(boss&&boss.state==="vulnerable"&&boss.target.active&&hero.form==="archer"&&overlap(a,boss.target)){
       a.ttl=0;hurtBoss();
     }
@@ -287,8 +365,40 @@ if(boss&&boss.arenaActive&&!boss.dead){
   let target=Math.max(0,Math.min(level.width-VIEW.w,hero.x-VIEW.w*.36));
   game.camera+=(target-game.camera)*Math.min(1,dt*5);
 }}
-function complete(){game.finished=true;game.progress.cleared=[...new Set([...game.progress.cleared,level.id])];game.progress.unlocked=Math.max(game.progress.unlocked,Math.min(5,level.id+1));save();if(level.id<5){game.transition=2.2;notice(`${level.name} concluída! Próxima fase...`);}else notice("Mundo 1 concluído!");}
-function draw(){const cam=Math.floor(game.camera);background(cam);if(level.water)level.water.forEach(w=>{ctx.fillStyle="#1d8dc5";ctx.fillRect(w.x-cam,w.y,w.w,w.h);ctx.fillStyle="#86eafa";for(let i=0;i<w.w;i+=25)ctx.fillRect(w.x-cam+i,481,14,3);});solids.forEach(s=>{if(s.platform&&s.crumbleState==="gone")return;drawSolid(s,cam);if(s.platform&&s.crumble){const x=s.x-cam;if(s.crumbleState==="shaking"){ctx.strokeStyle="#f4d15b";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+8,s.y+4);ctx.lineTo(x+18,s.y+13);ctx.lineTo(x+26,s.y+5);ctx.stroke();}else if(s.crumbleState==="rebuilding"){ctx.globalAlpha=.45;ctx.fillStyle="#a9d9e8";ctx.fillRect(x,s.y,s.w,s.h);ctx.globalAlpha=1;}}});drawForestDecor(cam);blocks.forEach(b=>!b.broken&&drawBlock(b,cam));secrets.forEach(s=>!s.found&&drawSecret(s,cam));hazards.forEach(h=>drawHazard(h,cam));enemies.forEach(e=>!e.dead&&drawEnemy(e,cam));masks.forEach(m=>!m.taken&&drawMask(m,cam));arrows.forEach(a=>drawArrow(a,cam));drawCheckpoint(cam);if(boss)drawBoss(cam);if(!level.boss||boss.dead)drawPortal(cam);drawHero(cam);hud();if(game.finished)overlay();}
+function complete(){game.finished=true;game.progress.cleared=[...new Set([...game.progress.cleared,level.id])];game.progress.unlocked=Math.max(game.progress.unlocked,Math.min(7,level.id+1));save();
+  if(level.transitionStage){
+    game.progress.transitionCleared=true;game.progress.unlocked=Math.max(game.progress.unlocked,7);
+    game.finished=false;game.transition=2.6;save();
+    notice("DESAFIO CONCLUÍDO! Entrando no Mundo 2 — Cavernas...");
+  }
+  else if(level.id<5){game.transition=2.2;notice(`${level.name} concluída! Próxima fase...`);}
+  else notice("Mundo 1 concluído! Prepare-se para a Máquina Mortal.");}
+function drawDeathMachine(cam){
+  const m=game.machine;if(!m)return;
+  const x=Math.floor(m.x-cam),w=m.w;
+  ctx.save();
+  // Corpo maciço de aço ocupa toda a altura: não há passagem por cima ou por baixo.
+  const grad=ctx.createLinearGradient(x,0,x+w,0);grad.addColorStop(0,"#161c25");grad.addColorStop(.35,"#59636c");grad.addColorStop(.72,"#252d36");grad.addColorStop(1,"#090d13");
+  ctx.fillStyle=grad;ctx.fillRect(x,0,w,540);
+  ctx.fillStyle="#aeb9c1";ctx.fillRect(x+18,0,8,540);ctx.fillRect(x+w-28,0,7,540);
+  for(let y=18;y<540;y+=76){
+    ctx.fillStyle="#111820";ctx.fillRect(x+34,y,w-68,44);
+    // Serras circulares com dentes.
+    for(let k=0;k<3;k++){
+      const cx=x+62+k*62,cy=y+22;
+      ctx.save();ctx.translate(cx,cy);ctx.rotate(game.time*3.4*(k%2?1:-1));
+      ctx.fillStyle="#c7d0d5";ctx.beginPath();
+      for(let a=0;a<24;a++){const ang=a*Math.PI/12,rad=a%2?13:20;const px=Math.cos(ang)*rad,py=Math.sin(ang)*rad;if(a===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}
+      ctx.closePath();ctx.fill();ctx.fillStyle="#343e48";ctx.beginPath();ctx.arc(0,0,7,0,Math.PI*2);ctx.fill();ctx.fillStyle="#e9f0f2";ctx.fillRect(-2,-2,4,4);ctx.restore();
+    }
+  }
+  // Fileira de lâminas e espinhos voltados para a frente.
+  ctx.fillStyle="#d8e0e5";
+  for(let y=8;y<540;y+=28){ctx.beginPath();ctx.moveTo(x+w-34,y);ctx.lineTo(x+w+8,y+14);ctx.lineTo(x+w-34,y+26);ctx.closePath();ctx.fill();}
+  ctx.fillStyle="#b82f36";ctx.fillRect(x+w-43,0,9,540);
+  ctx.restore();
+}
+function draw(){const cam=Math.floor(game.camera);background(cam);if(level.water)level.water.forEach(w=>{ctx.fillStyle="#1d8dc5";ctx.fillRect(w.x-cam,w.y,w.w,w.h);ctx.fillStyle="#86eafa";for(let i=0;i<w.w;i+=25)ctx.fillRect(w.x-cam+i,481,14,3);});solids.forEach(s=>{if(s.platform&&s.crumbleState==="gone")return;drawSolid(s,cam);if(s.platform&&s.crumble){const x=s.x-cam;if(s.crumbleState==="shaking"){ctx.strokeStyle="#f4d15b";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+8,s.y+4);ctx.lineTo(x+18,s.y+13);ctx.lineTo(x+26,s.y+5);ctx.stroke();}else if(s.crumbleState==="rebuilding"){ctx.globalAlpha=.45;ctx.fillStyle="#a9d9e8";ctx.fillRect(x,s.y,s.w,s.h);ctx.globalAlpha=1;}}});drawForestDecor(cam);blocks.forEach(b=>!b.broken&&drawBlock(b,cam));secrets.forEach(s=>!s.found&&drawSecret(s,cam));hazards.forEach(h=>drawHazard(h,cam));enemies.forEach(e=>!e.dead&&drawEnemy(e,cam));flyers.forEach(f=>!f.dead&&drawEnemy(f,cam));masks.forEach(m=>!m.taken&&drawMask(m,cam));arrows.forEach(a=>drawArrow(a,cam));drawCheckpoint(cam);if(boss)drawBoss(cam);if(!level.boss||boss.dead)drawPortal(cam);if(level.transitionStage)drawDeathMachine(cam);drawHero(cam);hud();if(game.finished)overlay();}
 
 // Texturas pixel-art geradas no próprio Canvas: não dependem de imagens externas.
 let forestTextures=null;
@@ -333,8 +443,9 @@ function treeLayer(x,baseY,scale,leaf,parallax){
   if(scale>.8){ctx.strokeStyle="#438d3d";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+8*scale,baseY-h+20*scale);ctx.lineTo(x+14*scale,baseY-h+75*scale);ctx.lineTo(x+10*scale,baseY-h+92*scale);ctx.stroke();}
 }
 function background(cam){
-  const pal={hills:["#65c8ee","#a9e6f5"],woods:["#29475a","#759b79"],river:["#58b9dc","#b4e6e9"],ruins:["#658da0","#c2d7c4"],lair:["#182d3b","#526c57"]}[level.theme]||["#65c8ee","#a9e6f5"];
+  const pal={hills:["#65c8ee","#a9e6f5"],woods:["#29475a","#759b79"],river:["#58b9dc","#b4e6e9"],ruins:["#658da0","#c2d7c4"],lair:["#182d3b","#526c57"],transition:["#5bb9d5","#8caa8b"],cave:["#102431","#435c68"]}[level.theme]||["#65c8ee","#a9e6f5"];
   const sky=ctx.createLinearGradient(0,0,0,540);sky.addColorStop(0,pal[0]);sky.addColorStop(1,pal[1]);ctx.fillStyle=sky;ctx.fillRect(0,0,VIEW.w,VIEW.h);
+  if(level.theme!=="cave"){
   for(let i=-100-(cam*.025%270);i<1100;i+=270)cloud(i,48+(Math.sin(i)*12),.8);
   // Montanhas distantes em duas profundidades.
   for(let layer=0;layer<2;layer++){
@@ -348,13 +459,37 @@ function background(cam){
   // Floresta distante e intermediária com parallax.
   for(let i=-150-(cam*.055%210);i<1120;i+=210)treeLayer(i,475,0.62,"#347c49",.055);
   for(let i=-190-(cam*.085%300);i<1200;i+=300)treeLayer(i,500,1.02,level.theme==="woods"?"#285d3c":"#39883d",.085);
+  }
+  if(level.theme==="cave"){
+    for(let i=-40-(cam*.12%180);i<1100;i+=180){
+      const depth=65+Math.abs(Math.sin((i+cam)*.013))*95;
+      ctx.fillStyle="#263f4c";ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i+42,depth);ctx.lineTo(i+86,0);ctx.closePath();ctx.fill();
+      ctx.fillStyle="#81969a";ctx.fillRect(i+39,depth-8,5,8);
+      ctx.fillStyle="#344f5a";ctx.beginPath();ctx.moveTo(i+15,540);ctx.lineTo(i+55,420+Math.abs(Math.sin(i*.02))*45);ctx.lineTo(i+100,540);ctx.closePath();ctx.fill();
+    }
+    for(let i=120-(cam*.3%330);i<1100;i+=330){
+      ctx.fillStyle="#78b9c0";ctx.fillRect(i,270,5,3);ctx.fillRect(i+8,274,3,3);
+    }
+  }
+  // O cenário da fuga muda gradualmente da floresta para as cavernas.
+  if(level.transitionStage){
+    const progress=Math.max(0,Math.min(1,cam/Math.max(1,level.width-VIEW.w)));
+    const cave=Math.max(0,(progress-.28)/.72);
+    for(let i=-40-(cam*.07%180);i<1100;i+=180){
+      const h=35+cave*95+((Math.floor((i+cam*.07)/180)%3)*18);
+      ctx.fillStyle=`rgba(39,57,62,${.12+cave*.62})`;
+      ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i+48,h);ctx.lineTo(i+92,0);ctx.closePath();ctx.fill();
+      if(cave>.28){ctx.fillStyle="#78969a";ctx.fillRect(i+65,0,4,20+cave*30);}
+    }
+    if(progress>.48){ctx.fillStyle=`rgba(25,38,46,${(progress-.48)*.58})`;ctx.fillRect(0,0,VIEW.w,VIEW.h);}
+  }
   // O plano próximo permanece estável; somente o cenário distante usa parallax muito sutil.
 }
 function VIEwSafe(){return VIEW.w;}
 function drawSolid(s,cam){
   const screenX=Math.floor(s.x-cam);
   if(screenX>VIEW.w||screenX+s.w<0)return;
-  const t=makeForestTextures(),isStone=level.theme==="ruins";
+  const t=makeForestTextures(),isStone=level.theme==="ruins"||level.theme==="cave"||(level.transitionStage&&game.camera>level.width*.45);
   // Tudo é desenhado em coordenadas do mundo. A textura acompanha o terreno
   // e não fica parada na tela como uma esteira/chroma key.
   ctx.save();
@@ -383,14 +518,18 @@ function drawSolid(s,cam){
 }
 
 function drawForestDecor(cam){
-  if(!["hills","woods","river","ruins","lair"].includes(level.theme))return;
+  if(!["hills","woods","river","ruins","lair","transition"].includes(level.theme))return;
   const decor=[];
   for(let x=80;x<level.width;x+=173){
     decor.push({x:x+((Math.floor(x/173)%3)*21),type:Math.floor(x/173)%4});
   }
   for(const d of decor){
     const sx=Math.floor(d.x-cam);if(sx<-50||sx>VIEW.w+50)continue;
-    if(d.type===0){ctx.fillStyle="#246b35";ctx.fillRect(sx,458,22,8);ctx.fillStyle="#4b9d3e";ctx.fillRect(sx+4,451,14,9);}
+    if(level.theme==="cave"){
+      ctx.fillStyle="#526b70";ctx.beginPath();ctx.moveTo(sx,476);ctx.lineTo(sx+12,444-(d.type*5));ctx.lineTo(sx+25,476);ctx.closePath();ctx.fill();
+    }else if(level.transitionStage&&game.camera/level.width>.58){
+      const h=18+((Math.floor(d.x/173)%4)*9);ctx.fillStyle="#526b70";ctx.beginPath();ctx.moveTo(sx,476);ctx.lineTo(sx+12,476-h);ctx.lineTo(sx+25,476);ctx.closePath();ctx.fill();
+    }else if(d.type===0){ctx.fillStyle="#246b35";ctx.fillRect(sx,458,22,8);ctx.fillStyle="#4b9d3e";ctx.fillRect(sx+4,451,14,9);}
     else if(d.type===1){ctx.fillStyle="#68716b";ctx.fillRect(sx,458,19,10);ctx.fillStyle="#aab3a0";ctx.fillRect(sx+3,455,11,4);}
     else if(d.type===2){ctx.fillStyle="#e64c43";ctx.fillRect(sx+4,448,12,9);ctx.fillStyle="#fff1cf";ctx.fillRect(sx+7,451,3,2);ctx.fillRect(sx+13,449,2,2);ctx.fillStyle="#e8d7a2";ctx.fillRect(sx+9,457,3,7);}
     else {ctx.fillStyle="#39863d";ctx.fillRect(sx+5,453,3,10);ctx.fillRect(sx+12,450,3,13);ctx.fillStyle="#e4c95d";ctx.fillRect(sx+3,449,6,3);ctx.fillRect(sx+12,446,6,3);}
@@ -677,8 +816,11 @@ function drawHero(cam){
   if(hero.action>0){px(29,27,10,3,"#fff2a5");px(34,23,3,11,"#ffe08a");}
   ctx.restore();
 }
-function hud(){ctx.fillStyle="#132447dd";ctx.fillRect(12,12,365,67);ctx.fillStyle="#fff";ctx.font="bold 13px monospace";ctx.fillText(`${level.name.toUpperCase()} · ${RULES[game.mode].safe?"TESTE":"NORMAL"}`,22,33);ctx.fillStyle="#ffcf61";ctx.fillText(RULES[game.mode].safe?"VIDAS: ∞":`VIDAS: ${"♥".repeat(hero.lives)}${"♡".repeat(3-hero.lives)}`,22,54);ctx.fillStyle="#b8efff";ctx.fillText(`FORMA: ${hero.form?FORMS[hero.form].name:"avent. normal"}`,156,54);ctx.fillStyle="#132447dd";ctx.fillRect(747,12,201,35);ctx.fillStyle="#fff";ctx.fillText(`PONTOS: ${game.score} · DANOS: ${game.events.length}`,752,34);if(boss&&!boss.dead){ctx.fillStyle="#132447dd";ctx.fillRect(335,84,290,28);ctx.fillStyle="#582f32";ctx.fillRect(340,89,280,18);ctx.fillStyle="#e55c5c";ctx.fillRect(340,89,280*(boss.hp/boss.max),18);ctx.fillStyle="#fff";ctx.font="12px monospace";ctx.fillText("GUARDIÃO DA FLORESTA",387,104);}}
-function overlay(){ctx.fillStyle="#09112599";ctx.fillRect(0,0,VIEW.w,VIEW.h);ctx.fillStyle="#fff";ctx.textAlign="center";ctx.font="bold 27px monospace";ctx.fillText(hero.lives===0?"GAME OVER":boss?.dead?"MUNDO 1 CONCLUÍDO!":"FASE CONCLUÍDA!",480,235);ctx.font="15px monospace";ctx.fillText(hero.lives===0?"Use Recomeçar fase para tentar novamente.":boss?.dead?"O portal para o Mundo 2 será aberto em breve.":"Preparando a próxima fase...",480,270);ctx.textAlign="left";}
+function hud(){ctx.fillStyle="#132447dd";ctx.fillRect(12,12,365,67);ctx.fillStyle="#fff";ctx.font="bold 13px monospace";ctx.fillText(`${level.name.toUpperCase()} · ${RULES[game.mode].safe?"TESTE":"NORMAL"}`,22,33);ctx.fillStyle="#ffcf61";ctx.fillText(RULES[game.mode].safe?"VIDAS: ∞":`VIDAS: ${"♥".repeat(hero.lives)}${"♡".repeat(3-hero.lives)}`,22,54);ctx.fillStyle="#b8efff";ctx.fillText(`FORMA: ${hero.form?FORMS[hero.form].name:"avent. normal"}`,156,54);ctx.fillStyle="#132447dd";ctx.fillRect(625,12,323,35);ctx.fillStyle="#fff";
+  const secs=Math.max(0,Math.ceil(game.levelTime)),clock=`${String(Math.floor(secs/60)).padStart(2,"0")}:${String(secs%60).padStart(2,"0")}`;
+  ctx.fillText(level.transitionStage?"FUGA: MÁQUINA EM MOVIMENTO":`TEMPO: ${clock}`,635,34);
+  ctx.fillText(`PONTOS: ${game.score} · DANOS: ${game.events.length}`,750,34);if(boss&&!boss.dead){ctx.fillStyle="#132447dd";ctx.fillRect(335,84,290,28);ctx.fillStyle="#582f32";ctx.fillRect(340,89,280,18);ctx.fillStyle="#e55c5c";ctx.fillRect(340,89,280*(boss.hp/boss.max),18);ctx.fillStyle="#fff";ctx.font="12px monospace";ctx.fillText("GUARDIÃO DA FLORESTA",387,104);}}
+function overlay(){ctx.fillStyle="#09112599";ctx.fillRect(0,0,VIEW.w,VIEW.h);ctx.fillStyle="#fff";ctx.textAlign="center";ctx.font="bold 27px monospace";ctx.fillText(hero.lives===0?"GAME OVER":level.transitionStage&&game.progress.transitionCleared?"MUNDO 2 DESBLOQUEADO!":boss?.dead?"MUNDO 1 CONCLUÍDO!":"FASE CONCLUÍDA!",480,235);ctx.font="15px monospace";ctx.fillText(hero.lives===0?"Use Recomeçar fase para tentar novamente.":level.transitionStage?"Você escapou da Máquina Mortal. As Cavernas aguardam!":boss?.dead?"Prepare-se para a Máquina Mortal!":"Preparando a próxima fase...",480,270);ctx.textAlign="left";}
 function drawPauseOverlay(){ctx.fillStyle="#071326bb";ctx.fillRect(0,0,VIEW.w,VIEW.h);ctx.fillStyle="#fff";ctx.textAlign="center";ctx.font="bold 34px monospace";ctx.fillText("JOGO PAUSADO",480,250);ctx.font="16px monospace";ctx.fillText("Pressione P ou ESC para continuar",480,285);ctx.textAlign="left";}
 let last=performance.now();function loop(now){let dt=Math.min(.033,(now-last)/1000);last=now;update(dt);draw();if(game.paused)drawPauseOverlay();requestAnimationFrame(loop);}function togglePause(){if(game.finished||game.transition>0)return;game.paused=!game.paused;const b=document.querySelector("#pauseButton");if(b)b.textContent=game.paused?"Continuar · P / ESC":"Pausar · P / ESC";}function key(e,down){
   const k=e.key.toLowerCase();
@@ -690,4 +832,4 @@ let last=performance.now();function loop(now){let dt=Math.min(.033,(now-last)/10
   if(down&&k===" "){keys.jump=true;e.preventDefault();}
   if(down&&["x","k"].includes(k)){keys.action=true;e.preventDefault();}
 }
-addEventListener("keydown",e=>key(e,true));addEventListener("keyup",e=>key(e,false));document.querySelectorAll("[data-action]").forEach(button=>{const action=button.dataset.action,press=(e,down)=>{e.preventDefault();button.classList.toggle("active",down);if(action==="jump"&&down)keys.jump=true;else if(action==="attack"&&down)keys.action=true;else if(action!=="jump")keys[action]=down;};button.addEventListener("pointerdown",e=>press(e,true));["pointerup","pointercancel","pointerleave"].forEach(n=>button.addEventListener(n,e=>press(e,false)));});modeEl.onchange=()=>{game.mode=modeEl.value;loadLevel(level?.id||1);};difficultyEl.onchange=()=>{game.difficulty=difficultyEl.value;if(level?.boss)loadLevel(level.id,true);};stageEl.onchange=()=>loadLevel(+stageEl.value);document.querySelector("#restartButton").onclick=()=>{game.paused=false;const b=document.querySelector("#pauseButton");if(b)b.textContent="Pausar · P / ESC";loadLevel(level.id);};const pauseButton=document.querySelector("#pauseButton");if(pauseButton)pauseButton.onclick=togglePause;if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js").catch(()=>{}));loadLevel(1);requestAnimationFrame(loop);
+addEventListener("keydown",e=>key(e,true));addEventListener("keyup",e=>key(e,false));document.querySelectorAll("[data-action]").forEach(button=>{const action=button.dataset.action,press=(e,down)=>{e.preventDefault();button.classList.toggle("active",down);if(action==="jump"&&down)keys.jump=true;else if(action==="attack"&&down)keys.action=true;else if(action!=="jump")keys[action]=down;};button.addEventListener("pointerdown",e=>press(e,true));["pointerup","pointercancel","pointerleave"].forEach(n=>button.addEventListener(n,e=>press(e,false)));});modeEl.onchange=()=>{game.mode=modeEl.value;loadLevel(level?.id||1);};difficultyEl.onchange=()=>{game.difficulty=difficultyEl.value;game.levelTime=TIME_LIMITS[game.difficulty];if(level?.boss)loadLevel(level.id,true);};stageEl.onchange=()=>loadLevel(+stageEl.value);document.querySelector("#restartButton").onclick=()=>{game.paused=false;const b=document.querySelector("#pauseButton");if(b)b.textContent="Pausar · P / ESC";loadLevel(level.id);};const pauseButton=document.querySelector("#pauseButton");if(pauseButton)pauseButton.onclick=togglePause;if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js").catch(()=>{}));loadLevel(1);if(game.progress.cleared.includes(5)&&!game.progress.transitionCleared&&game.progress.unlocked>=6)loadLevel(6,true);requestAnimationFrame(loop);
